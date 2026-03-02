@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| **Date** | February 17, 2026 (manual audit), February 23, 2026 (test suite) |
-| **Scope** | 39 crypto-related files (OMEMO v1/v2, Signal Protocol, SASL, file transfer, GCrypt wrapper) + OpenPGP plugin (15 files) |
-| **Findings** | 6 Critical/High, 11 Medium, 3 Low (manual audit) + 3 Medium OpenPGP + 21 bugs from automated test suite |
+| **Date** | February 17, 2026 (manual audit), February 23, 2026 (test suite), March 2, 2026 (MQTT audit) |
+| **Scope** | 39 crypto-related files (OMEMO v1/v2, Signal Protocol, SASL, file transfer, GCrypt wrapper) + OpenPGP plugin (15 files) + MQTT plugin (15 files) |
+| **Findings** | 6 Critical/High, 11 Medium, 3 Low (manual audit) + 3 Medium OpenPGP + 21 bugs from test suite + 11 MQTT (4 Critical, 2 High, 3 Medium, 2 Low) |
 | **Status** | All fixed |
-| **Test Suite** | [docs/internal/TESTING.md](docs/internal/TESTING.md) — 506 Meson tests + 136 standalone = 642 total, 0 failures |
+| **Test Suite** | [docs/internal/TESTING.md](docs/internal/TESTING.md) — 689 Meson tests + 136 standalone = 825 total, 0 failures |
 | **Website** | [dinox.handwerker.jetzt/security-audit.html](https://dinox.handwerker.jetzt/security-audit.html) |
 
 ---
@@ -307,6 +307,65 @@ GPG operations are serialized through a single worker thread to prevent race con
 
 ---
 
+## MQTT Plugin Security Audit (March 2026)
+
+A comprehensive self-audit of all MQTT plugin code (~15 source files) was performed
+against CODING_GUIDELINES.md, SECURITY_GUIDELINES.md, and REVIEW_CHECKLIST.md.
+All findings were fixed in commit [`030cc9d9`](https://github.com/rallep71/dinox/commit/030cc9d9).
+23 regression tests were added in commit [`bdb2e272`](https://github.com/rallep71/dinox/commit/bdb2e272).
+
+### MQTT Critical & High Findings (Fixed)
+
+| # | Severity | File | Issue |
+|---|----------|------|-------|
+| M1 | **CRITICAL** | `alert_manager.vala` | **SQL injection:** `db.exec("UPDATE ... WHERE id=%lld".printf(...))` used string interpolation for DML. Fixed by replacing with Qlite ORM `.update().with().set().perform()`. |
+| M2 | **CRITICAL** | `mqtt_client.vala` | **Reconnect race condition:** `attempt_reconnect()` yielded async then accessed `client` without null re-check. Another callback could null the reference during the yield. Fixed with null guard after yield. |
+| M3 | **CRITICAL** | `command_handler.vala` | **Publish payload truncation:** `!publish topic payload` split with limit=3, but only `token[2]` used as payload — any spaces after the second word were lost. Fixed by combining `token[2]` through remainder. |
+| M4 | **CRITICAL** | `bot_conversation.vala` | **Null dereference:** `ConversationManager` accessed without null check. Fixed with explicit null guard. |
+| M5 | **HIGH** | `plugin.vala`, `connection_config.vala`, `mqtt_bot_manager_dialog.vala` | **Port validation missing:** Port number from DB/user input accepted without range check. Values 0, -1, 99999 could cause connection failures or undefined behavior. Fixed with `.clamp(1, 65535)` in property setter + validation on save. |
+| M6 | **HIGH** | `discovery_manager.vala` | **Reconnect uses reload_config() instead of apply_settings():** Remote `!settings` command loaded new config but never acted on it (no reconnect, no timer restart). Fixed to call `apply_settings()`. |
+
+### MQTT Medium Findings (Fixed)
+
+| # | File | Issue |
+|---|------|-------|
+| M7 | `alert_manager.vala`, `mqtt_client.vala`, `mqtt_utils.vala` | **Empty catch blocks:** Multiple `catch (Error e) {}` silently swallowed exceptions. Added `debug()` logging to all. |
+| M8 | `database.vala` | **Unbounded queries:** `get_all_topic_stats()` queries had no LIMIT, could load thousands of rows. Added `.limit(10000)`. |
+| M9 | `mqtt_utils.vala` | **truncate_string() crash with max_len ≤ 3:** Tried to `.substring(0, max_len - 3)` with negative/zero length. Added guard returning original string when max_len ≤ 3. |
+
+### MQTT Low Findings (Fixed)
+
+| # | File | Issue |
+|---|------|-------|
+| M10 | `mqtt_bot_manager_dialog.vala` | **Priority dropdown mismatch:** Dropdown showed "urgent" but enum uses `CRITICAL`. Added missing "silent" level. UI labels now match enum `to_string()` keys exactly. |
+| M11 | `command_handler.vala`, `topic_manager_dialog.vala` | **Dead code:** Unreachable methods and unused signal handlers removed. |
+
+### MQTT Types Not Unit-Testable
+
+`MqttPriority` enum, `AlertOperator` enum, and `AlertRule.evaluate()` logic reside in
+`alert_manager.vala` which depends on the full `Plugin` class. The test binary cannot
+include it without pulling in the entire plugin dependency chain (dep_dino, dep_xmpp_vala,
+dep_qlite, dep_gtk4). These types are verified via manual/integration testing.
+
+### Guidelines Updated
+
+Based on audit findings, the following rules were added to project guidelines:
+
+| Guideline | New Rule |
+|-----------|----------|
+| CODING_GUIDELINES.md §7 #5 | `exec()` only for PRAGMA/DDL, never for DML |
+| CODING_GUIDELINES.md §5 | Every `catch` must log at minimum `debug()` |
+| CODING_GUIDELINES.md §14 #13 | Enum ↔ UI dropdown labels must match exactly |
+| CODING_GUIDELINES.md §14 #14 | No nullable types in non-null collections |
+| REVIEW_CHECKLIST.md §3.8 | No `exec()` for DML check |
+| REVIEW_CHECKLIST.md §6.7/§6.8 | Port range + property setter validation |
+| REVIEW_CHECKLIST.md §10.10 | `apply_settings()` vs `reload_config()` |
+| SECURITY_GUIDELINES.md §2.2 | Port number validation (1–65535) |
+| SECURITY_GUIDELINES.md §8.3 | Config reload vs apply distinction |
+| SECURITY_GUIDELINES.md §8.4 | Connection property validation in setters |
+
+---
+
 ## Upstream Dino Bugs
 
 The following bugs exist in the [original Dino codebase](https://github.com/dino/dino)
@@ -323,8 +382,8 @@ in DinoX but remain unfixed in upstream Dino.
 
 ## Automated Test Suite -- Additional Bugs Found
 
-After the manual audit, a comprehensive **spec-based test suite** (506 Meson tests + 136
-standalone = 642 total) was built to verify all fixes and catch further defects.
+After the manual audit, a comprehensive **spec-based test suite** (689 Meson tests + 136
+standalone = 825 total) was built to verify all fixes and catch further defects.
 The test suite found **21 additional bugs** not discovered during the manual audit.
 
 Full test inventory, spec references, and reproduction steps:
@@ -369,4 +428,5 @@ Full test inventory, spec references, and reproduction steps:
 | XML/Stanza (RFC 6120) | 21 | T-20 |
 | Crypto Hashes (XEP-0300) | 15 | T-21 |
 | UI Helpers, Data Structures, Misc | 194 | 0 |
-| **Total** | **506** | **21** |
+| MQTT Plugin (12 suites) | 101 | M1–M4 (see §MQTT Audit below) |
+| **Total** | **689** | **21 + 4 MQTT** |
