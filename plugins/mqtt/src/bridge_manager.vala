@@ -48,9 +48,11 @@ public class BridgeRule : Object {
 
     /**
      * Format the bridged message body.
+     * Uses the alias (if set) instead of the raw topic path.
      */
     public string format_message(string topic_name, string payload) {
-        return MqttUtils.format_bridge_message(format ?? "full", topic_name, payload);
+        string display = (alias != null && alias.strip() != "") ? alias : topic_name;
+        return MqttUtils.format_bridge_message(format ?? "full", display, payload);
     }
 
     /**
