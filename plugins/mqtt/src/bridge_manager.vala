@@ -226,7 +226,12 @@ public class MqttBridgeManager : Object {
      * @param topic   The MQTT topic
      * @param payload The MQTT payload (UTF-8)
      */
-    public void evaluate(string source, string topic, string payload) {
+    /**
+     * Evaluate bridge rules for an incoming MQTT message.
+     * @return true if at least one rule matched and forwarded the message.
+     */
+    public bool evaluate(string source, string topic, string payload) {
+        bool forwarded = false;
         foreach (var rule in rules) {
             if (!rule.enabled) continue;
             /* Only evaluate rules belonging to the MQTT client that
@@ -246,7 +251,9 @@ public class MqttBridgeManager : Object {
             /* Format and send */
             string body = rule.format_message(topic, payload);
             send_xmpp_message(source, rule.target_jid, body);
+            forwarded = true;
         }
+        return forwarded;
     }
 
     /**

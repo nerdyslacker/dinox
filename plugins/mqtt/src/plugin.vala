@@ -1181,9 +1181,12 @@ public class Plugin : RootInterface, Object {
                 return;
             }
 
-            /* Phase 4: Evaluate bridge rules (MQTT → XMPP forwarding) */
+            /* Phase 4: Evaluate bridge rules (MQTT → XMPP forwarding).
+             * If a bridge rule matched, the message goes to the configured
+             * MUC/chat — do NOT also show it in the bot conversation. */
+            bool bridged = false;
             if (bridge_manager != null) {
-                bridge_manager.evaluate(label, topic, payload_str);
+                bridged = bridge_manager.evaluate(label, topic, payload_str);
             }
 
             /* Phase 3: Evaluate alert rules and determine priority */
@@ -1219,8 +1222,9 @@ public class Plugin : RootInterface, Object {
                                        priority.to_string_key());
             }
 
-            /* Inject into bot conversation with priority */
-            if (bot_conversation != null) {
+            /* Inject into bot conversation with priority —
+             * but NOT if the message was already forwarded by a bridge rule. */
+            if (!bridged && bot_conversation != null) {
                 Conversation? conv = bot_conversation.get_conversation(label);
                 if (conv == null) conv = bot_conversation.get_any_conversation();
                 if (conv != null) {
