@@ -258,7 +258,7 @@ public class TopicHistoryEntry {
     public TopicHistoryEntry(string topic, string payload) {
         this.topic = topic;
         this.payload = payload;
-        this.timestamp = new DateTime.now_utc();
+        this.timestamp = new DateTime.from_unix_utc(MqttUtils.now_unix());
         this.triggered_priority = MqttPriority.NORMAL;
     }
 }

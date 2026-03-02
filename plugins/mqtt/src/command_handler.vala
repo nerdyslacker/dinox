@@ -844,8 +844,8 @@ public class MqttCommandHandler : Object {
         for (int i = rows.size - 1; i >= 0; i--) {
             var row = rows[i];
             long ts = db.messages.timestamp[row];
-            var dt = new DateTime.from_unix_utc(ts).to_local();
-            string time_str = dt.format("%H:%M:%S");
+            DateTime? dt = new DateTime.from_unix_utc(ts);
+            string time_str = (dt != null) ? dt.to_local().format("%H:%M:%S") : "??:??:??";
             string prio_str = db.messages.priority[row];
             MqttPriority prio = MqttPriority.from_string(prio_str);
             string prio_icon = prio.to_icon();
