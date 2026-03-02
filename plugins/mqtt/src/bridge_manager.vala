@@ -175,7 +175,7 @@ public class MqttBridgeManager : Object {
             if (!rule.matches_topic(topic)) continue;
 
             /* Rate limiting */
-            int64 now = new DateTime.now_utc().to_unix();
+            int64 now = MqttUtils.now_unix();
             if (last_send_times.has_key(rule.id)) {
                 if (now - last_send_times[rule.id] < MIN_SEND_INTERVAL_SECS) {
                     continue;
@@ -390,7 +390,7 @@ public class MqttBridgeManager : Object {
                 /* Delete all existing rules and re-insert */
                 plugin.mqtt_db.bridge_rules.delete().perform();
 
-                long now = (long) new DateTime.now_utc().to_unix();
+                long now = (long) MqttUtils.now_unix();
                 foreach (var rule in rules) {
                     plugin.mqtt_db.bridge_rules.insert()
                         .value(plugin.mqtt_db.bridge_rules.id, rule.id)

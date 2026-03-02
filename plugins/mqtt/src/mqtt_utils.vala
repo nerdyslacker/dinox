@@ -257,6 +257,24 @@ public class MqttUtils : Object {
         if (h.has_suffix(".local") || h.has_suffix(".lan") || h.has_suffix(".home")) return true;
         return false;
     }
+
+    /**
+     * Safe wrapper for getting current UTC time as Unix timestamp.
+     *
+     * new DateTime.now_utc() can return NULL in edge cases (timezone
+     * database issues, system clock problems), which causes a
+     * GLib-CRITICAL when .to_unix() is called on it.
+     *
+     * Returns: Current Unix timestamp, or 0 if the system clock is unavailable.
+     */
+    public static int64 now_unix() {
+        DateTime? dt = new DateTime.now_utc();
+        if (dt == null) {
+            warning("MqttUtils.now_unix: DateTime.now_utc() returned NULL!");
+            return 0;
+        }
+        return dt.to_unix();
+    }
 }
 
 } // namespace

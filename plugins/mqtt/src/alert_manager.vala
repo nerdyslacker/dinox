@@ -143,7 +143,7 @@ public class AlertRule : Object {
     public bool evaluate(string value) {
         /* Check cooldown */
         if (last_triggered > 0 && cooldown_secs > 0) {
-            int64 now = new DateTime.now_utc().to_unix();
+            int64 now = MqttUtils.now_unix();
             if (now - last_triggered < cooldown_secs) {
                 return false;
             }
@@ -646,7 +646,7 @@ public class MqttAlertManager : Object {
                 }
 
                 /* Update trigger timestamp */
-                rule.last_triggered = new DateTime.now_utc().to_unix();
+                rule.last_triggered = MqttUtils.now_unix();
             }
         }
 
@@ -654,7 +654,7 @@ public class MqttAlertManager : Object {
          * rather than doing a full DELETE ALL + INSERT ALL cycle.
          * This avoids an expensive save_rules() call on every alert. */
         if (result.triggered_rules.size > 0 && plugin.mqtt_db != null) {
-            long ts = (long) new DateTime.now_utc().to_unix();
+            long ts = (long) MqttUtils.now_unix();
             foreach (var triggered_rule in result.triggered_rules) {
                 try {
                     plugin.mqtt_db.exec(
@@ -792,7 +792,7 @@ public class MqttAlertManager : Object {
                 /* Delete all existing rules and re-insert */
                 plugin.mqtt_db.alert_rules.delete().perform();
 
-                long now = (long) new DateTime.now_utc().to_unix();
+                long now = (long) MqttUtils.now_unix();
                 foreach (var rule in rules) {
                     plugin.mqtt_db.alert_rules.insert()
                         .value(plugin.mqtt_db.alert_rules.id, rule.id)

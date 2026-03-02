@@ -340,7 +340,7 @@ public class MqttDatabase : Qlite.Database {
     public void record_message(string conn_id, string topic_name,
                                string? payload_str, int qos_val,
                                bool is_retained, string priority_str) {
-        long now = (long) new DateTime.now_utc().to_unix();
+        long now = (long) MqttUtils.now_unix();
         int payload_len = payload_str != null ? payload_str.length : 0;
 
         /* Insert into messages */
@@ -436,7 +436,7 @@ public class MqttDatabase : Qlite.Database {
     public void record_freetext(string conn_id, string direction_str,
                                 string topic_name, string? payload_str,
                                 int qos_val, bool retain_flag) {
-        long now = (long) new DateTime.now_utc().to_unix();
+        long now = (long) MqttUtils.now_unix();
         freetext.insert()
             .value(freetext.connection_id, conn_id)
             .value(freetext.direction, direction_str)
@@ -454,7 +454,7 @@ public class MqttDatabase : Qlite.Database {
     public void record_connection_event(string conn_id, string event_name,
                                         string? host, int port,
                                         string? error_msg = null) {
-        long now = (long) new DateTime.now_utc().to_unix();
+        long now = (long) MqttUtils.now_unix();
         connection_log.insert()
             .value(connection_log.connection_id, conn_id)
             .value(connection_log.event, event_name)
@@ -471,7 +471,7 @@ public class MqttDatabase : Qlite.Database {
     public void record_publish(string conn_id, string topic_name,
                                string? payload_str, int qos_val,
                                bool retain_flag, string source_type) {
-        long now = (long) new DateTime.now_utc().to_unix();
+        long now = (long) MqttUtils.now_unix();
         publish_history.insert()
             .value(publish_history.connection_id, conn_id)
             .value(publish_history.topic, topic_name)
@@ -621,7 +621,7 @@ public class MqttDatabase : Qlite.Database {
      * Returns total number of rows deleted (for logging).
      */
     public int purge_expired() {
-        long now = (long) new DateTime.now_utc().to_unix();
+        long now = (long) MqttUtils.now_unix();
         int total = 0;
 
         /* Count before delete for logging */

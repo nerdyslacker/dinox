@@ -490,8 +490,7 @@ public class MqttBotConversation : Object {
         msg.stanza_id = Xmpp.random_uuid();
 
         /* Remove milliseconds — matches Dino convention */
-        DateTime now = new DateTime.from_unix_utc(
-            new DateTime.now_utc().to_unix());
+        DateTime now = new DateTime.from_unix_utc(MqttUtils.now_unix());
         msg.time = now;
         msg.local_time = now;
         msg.marked = Message.Marked.NONE;
@@ -548,8 +547,7 @@ public class MqttBotConversation : Object {
         msg.type_ = Message.Type.CHAT;
         msg.stanza_id = Xmpp.random_uuid();
 
-        DateTime now = new DateTime.from_unix_utc(
-            new DateTime.now_utc().to_unix());
+        DateTime now = new DateTime.from_unix_utc(MqttUtils.now_unix());
         msg.time = now;
         msg.local_time = now;
         msg.marked = Message.Marked.READ;
