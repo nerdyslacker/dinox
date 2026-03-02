@@ -37,22 +37,18 @@ The file is written in C because libomemo-c requires a `signal_crypto_provider` 
 C function pointers. This is standard practice -- every XMPP client using libsignal has
 equivalent glue code.
 
-**Note:** Several critical bugs found in this file (#1, #2, #6 below) are also present in
-the [original upstream Dino codebase](https://github.com/dino/dino) and have not been fixed
-there as of the audit date. These bugs have existed since 2017.
-
 ---
 
 ## Critical & High Severity (Fixed)
 
 | # | Severity | File | Issue |
 |---|----------|------|-------|
-| 1 | **CRITICAL** | `helper.c:159` | **Heap corruption:** `free(md)` called on `gcry_md_read()` internal pointer. `gcry_md_read()` returns a pointer to an internal buffer that must not be freed. *Also in upstream Dino.* |
-| 2 | **CRITICAL** | `helper.c:86-89` | **Resource leak:** Missing `gcry_mac_close()` before `free()` when `gcry_mac_setkey()` fails. GCrypt internal state leaked. *Also in upstream Dino.* |
+| 1 | **CRITICAL** | `helper.c:159` | **Heap corruption:** `free(md)` called on `gcry_md_read()` internal pointer. `gcry_md_read()` returns a pointer to an internal buffer that must not be freed. |
+| 2 | **CRITICAL** | `helper.c:86-89` | **Resource leak:** Missing `gcry_mac_close()` before `free()` when `gcry_mac_setkey()` fails. GCrypt internal state leaked. |
 | 3 | **CRITICAL** | `helper.c:343-345` | **Incomplete PKCS#5 padding validation.** Only the last byte checked. Fixed with constant-time XOR-accumulator verifying all padding bytes. |
 | 4 | **HIGH** | `simple_iks.vala:33-36` | **Timing attack:** Non-constant-time identity key comparison with early return. Fixed with XOR-OR accumulator. |
 | 5 | **HIGH** | `sasl.vala:110-113` | **Timing attack:** Non-constant-time SCRAM-SHA-1 server signature verification. Fixed with XOR-OR accumulator. |
-| 6 | **HIGH** | `helper.c:128` | **Type mismatch:** `sizeof(gcry_mac_hd_t)` instead of `sizeof(gcry_md_hd_t)` in SHA-512 digest init. *Also in upstream Dino.* |
+| 6 | **HIGH** | `helper.c:128` | **Type mismatch:** `sizeof(gcry_mac_hd_t)` instead of `sizeof(gcry_md_hd_t)` in SHA-512 digest init. |
 
 ---
 
@@ -363,20 +359,6 @@ Based on audit findings, the following rules were added to project guidelines:
 | SECURITY_GUIDELINES.md §2.2 | Port number validation (1–65535) |
 | SECURITY_GUIDELINES.md §8.3 | Config reload vs apply distinction |
 | SECURITY_GUIDELINES.md §8.4 | Connection property validation in setters |
-
----
-
-## Upstream Dino Bugs
-
-The following bugs exist in the [original Dino codebase](https://github.com/dino/dino)
-in `plugins/omemo/src/native/helper.c` (formerly `signal_helper.c`) since 2017:
-
-- **#1** -- `free(md)` after `gcry_md_read()`: heap corruption (internal pointer freed)
-- **#2** -- Missing `gcry_mac_close()` on `gcry_mac_setkey()` failure path
-- **#6** -- `sizeof(gcry_mac_hd_t)` vs `sizeof(gcry_md_hd_t)` type mismatch in SHA-512 init
-
-These bugs are **not introduced by DinoX**. They were discovered during this audit and fixed
-in DinoX but remain unfixed in upstream Dino.
 
 ---
 
