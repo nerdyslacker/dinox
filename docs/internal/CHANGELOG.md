@@ -5,6 +5,21 @@ All notable changes to DinoX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4.7] - 2026-03-02
+
+### Fixed
+- **MQTT Plugin Self-Audit (11 findings, M1–M11)**: Comprehensive code review of ~15 MQTT source files against CODING_GUIDELINES.md, SECURITY_GUIDELINES.md, and REVIEW_CHECKLIST.md. Fixed 4 CRITICAL (SQL injection, reconnect race, payload truncation, null deref), 2 HIGH (port validation, reload_config vs apply_settings), 3 MEDIUM (empty catch blocks, unbounded queries, truncate_string crash), 2 LOW (dropdown mismatch, dead code). All fixed in `030cc9d9`
+- **MQTT Tests**: 23 new audit-driven regression tests (78 → 101 total, 12 suites). New suites: LocalHost, ConnectionConfig, PortValidation, TruncateEdge, AliasMap. Added in `bdb2e272`
+
+### Improved
+- **Security Audit Documentation**: SECURITY_AUDIT.md updated with MQTT audit section (M1–M11), consolidated header (55 findings total), removed upstream Dino references
+- **Test Documentation**: TESTING.md updated — MQTT section expanded (52→101 tests, 7→12 suites), total 689 Meson + 136 standalone = 825 tests
+- **GitHub Templates**: All 4 issue/PR templates overhauled with clickable dropdowns (version, OS, desktop, architecture). New CrashReport.yml template added
+- **Project Guidelines**: 10 new rules added to CODING_GUIDELINES.md, REVIEW_CHECKLIST.md, and SECURITY_GUIDELINES.md based on MQTT audit findings
+
+### Changed
+- **Version**: 1.1.4.6 → 1.1.4.7
+
 ## [1.1.4.6] - 2026-03-02
 
 ### Fixed

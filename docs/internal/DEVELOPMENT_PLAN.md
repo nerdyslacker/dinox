@@ -1,6 +1,6 @@
 # DinoX - Development Plan
 
-> **Last Updated**: March 2, 2026 (v1.1.4.6)
+> **Last Updated**: March 2, 2026 (v1.1.4.7)
 > **Current Release Line**: 1.1.4.x
 
 This document is organized as a **chronological release timeline** first, followed by a **forward-looking roadmap**.
@@ -11,7 +11,7 @@ This document is organized as a **chronological release timeline** first, follow
 
 | Metric | Status |
 |--------|--------|
-| **Current Version** | 1.1.4.6 |
+| **Current Version** | 1.1.4.7 |
 | **XEPs Implemented** | ~78 |
 | **Languages** | 47 (~85% translated) |
 | **Build Status** | Clean |
@@ -20,6 +20,15 @@ This document is organized as a **chronological release timeline** first, follow
 ---
 
 ## Timeline (Recent Releases)
+
+### v1.1.4.7 (MQTT Self-Audit, 23 New Tests, GitHub Templates)
+
+- **MQTT Self-Audit (11 findings)**: 4 CRITICAL + 2 HIGH + 3 MEDIUM + 2 LOW bugs fixed across ~15 MQTT source files
+- **MQTT Tests**: +23 audit-driven regression tests (78→101, 12 suites), 5 new suites
+- **Security Audit Docs**: MQTT section added (M1–M11), consolidated 55 findings, upstream Dino refs removed
+- **GitHub Templates**: All templates overhauled with dropdowns, new CrashReport.yml
+- **Guidelines**: 10 new rules from MQTT audit added to coding/review/security docs
+- **Test Suite**: 689 Meson + 136 standalone = 825 total, 0 failures
 
 ### v1.1.4.6 (MQTT Bridge send_account, ICE/DTLS Fix, MUC Fixes)
 
