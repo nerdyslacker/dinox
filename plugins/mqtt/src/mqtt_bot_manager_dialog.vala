@@ -831,9 +831,12 @@ public class MqttBotManagerDialog : Adw.Dialog {
     private void populate_topics_list() {
         /* Clear tracked rows — get_first_child() doesn't work on
          * Adw.PreferencesGroup because rows live inside an internal
-         * GtkListBox, not as direct children.  Use explicit tracking. */
+         * GtkListBox, not as direct children.  Use explicit tracking.
+         * Guard: skip remove for orphaned widgets from a rebuilt page. */
         foreach (var w in topic_rows) {
-            topics_group.remove(w);
+            if (w.get_parent() != null) {
+                topics_group.remove(w);
+            }
         }
         topic_rows.clear();
 
@@ -1121,9 +1124,14 @@ public class MqttBotManagerDialog : Adw.Dialog {
 
     private void populate_alerts_list() {
         /* Use tracked rows for clean removal (get_first_child doesn't
-         * work on Adw.PreferencesGroup internal container). */
+         * work on Adw.PreferencesGroup internal container).
+         * Guard: only remove if the widget is still a child of the
+         * current group — after back-navigation the group is rebuilt
+         * and the old widgets are orphaned. */
         foreach (var w in alert_rows) {
-            alerts_group.remove(w);
+            if (w.get_parent() != null) {
+                alerts_group.remove(w);
+            }
         }
         alert_rows.clear();
 
@@ -1178,8 +1186,11 @@ public class MqttBotManagerDialog : Adw.Dialog {
     private string? editing_bridge_id = null;
 
     private void populate_bridges_list() {
+        /* Guard: skip remove for orphaned widgets from a rebuilt page */
         foreach (var w in bridge_rows) {
-            bridges_group.remove(w);
+            if (w.get_parent() != null) {
+                bridges_group.remove(w);
+            }
         }
         bridge_rows.clear();
 
@@ -1270,9 +1281,12 @@ public class MqttBotManagerDialog : Adw.Dialog {
     private void populate_presets_list() {
         /* Clear tracked rows — get_first_child() doesn't work on
          * Adw.PreferencesGroup because rows live inside an internal
-         * GtkListBox, not as direct children.  Use explicit tracking. */
+         * GtkListBox, not as direct children.  Use explicit tracking.
+         * Guard: skip remove for orphaned widgets from a rebuilt page. */
         foreach (var w in preset_rows) {
-            presets_group.remove(w);
+            if (w.get_parent() != null) {
+                presets_group.remove(w);
+            }
         }
         preset_rows.clear();
 
