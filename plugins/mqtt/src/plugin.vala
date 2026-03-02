@@ -284,7 +284,8 @@ public class Plugin : RootInterface, Object {
         cfg.bot_enabled    = db.account_settings.get_value(account.id, AccountKey.BOT_ENABLED) != "0"; /* default true */
         cfg.broker_host    = db.account_settings.get_value(account.id, AccountKey.BROKER_HOST) ?? "";
         string? port_s     = db.account_settings.get_value(account.id, AccountKey.BROKER_PORT);
-        cfg.broker_port    = port_s != null ? int.parse(port_s) : 1883;
+        int raw_port       = port_s != null ? int.parse(port_s) : 1883;
+        cfg.broker_port    = (raw_port > 0 && raw_port <= 65535) ? raw_port : 1883;
         cfg.tls            = db.account_settings.get_value(account.id, AccountKey.TLS) == "1";
         cfg.use_xmpp_auth  = db.account_settings.get_value(account.id, AccountKey.USE_XMPP_AUTH) != "0"; /* default true */
         cfg.username       = db.account_settings.get_value(account.id, AccountKey.USERNAME) ?? "";
@@ -376,7 +377,8 @@ public class Plugin : RootInterface, Object {
         cfg.enabled     = get_db_setting(StandaloneKey.ENABLED) == "1";
         cfg.broker_host = get_db_setting(StandaloneKey.BROKER_HOST) ?? "";
         string? port_s  = get_db_setting(StandaloneKey.BROKER_PORT);
-        cfg.broker_port = port_s != null ? int.parse(port_s) : 1883;
+        int raw_port    = port_s != null ? int.parse(port_s) : 1883;
+        cfg.broker_port = (raw_port > 0 && raw_port <= 65535) ? raw_port : 1883;
         cfg.tls         = get_db_setting(StandaloneKey.TLS) == "1";
         cfg.username    = get_db_setting(StandaloneKey.USERNAME) ?? "";
         cfg.password    = get_db_setting(StandaloneKey.PASSWORD) ?? "";

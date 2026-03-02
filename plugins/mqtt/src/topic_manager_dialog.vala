@@ -385,26 +385,6 @@ public class MqttTopicManagerDialog : Adw.Dialog {
         topic_rows.clear();
         populate_topics();
     }
-
-    /* ── DB helpers ──────────────────────────────────────────────── */
-
-    private string? get_db_setting(string key) {
-        var row_opt = plugin.app.db.settings.select(
-                {plugin.app.db.settings.value})
-            .with(plugin.app.db.settings.key, "=", key)
-            .single()
-            .row();
-        if (row_opt.is_present())
-            return row_opt[plugin.app.db.settings.value];
-        return null;
-    }
-
-    private void set_db_setting(string key, string val) {
-        plugin.app.db.settings.upsert()
-            .value(plugin.app.db.settings.key, key, true)
-            .value(plugin.app.db.settings.value, val)
-            .perform();
-    }
 }
 
 }

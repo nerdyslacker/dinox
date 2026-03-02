@@ -20,6 +20,7 @@
 | Private fields | snake_case, no prefix | `private Database db;` |
 | Backing fields | underscore prefix only for property backing | `private string? body_;` |
 | Enums | PascalCase name, UPPER_CASE values | `enum Marked { NONE, RECEIVED, READ }` |
+| Enum ↔ UI | Dropdown/combo values must match enum string keys exactly | See §14 #13 |
 | Namespaces | PascalCase, dot-separated | `Dino.Ui.ChatInput`, `Xmpp.Xep` |
 | Files | snake_case.vala, matching main class | `conversation_manager.vala` |
 | Modules | Static `IDENTITY` constant | `public static ModuleIdentity<T> IDENTITY = ...;` |
@@ -192,9 +193,11 @@ try { temp_file.delete(null); } catch (Error e) {}
 ```
 
 ### Audit Rule: Every `catch` block must at least:
-1. Log via `warning()` / `critical()`, OR
+1. Log via `debug()`, `warning()`, or `critical()` (minimum: `debug()`), OR
 2. Re-throw to caller (`throw`), OR
 3. Be explicitly commented as cleanup catch (`// cleanup, ignore`)
+
+**Never silently swallow exceptions** — even low-severity catches must log at `debug()` level.
 
 ---
 
@@ -277,7 +280,11 @@ int deleted = db.changes();
 2. **Index** for every column used in `with()` or `order_by()` (Bugs P2–P4)
 3. **`changes()` instead of `COUNT(*)`** when you only need whether/how many rows were affected (Bug P5)
 4. **No string concatenation** in queries — always use `.with()` parameters (SQL injection!)
-5. **Raw SQL (`exec()`)** only for PRAGMA and migrations
+5. **Raw SQL (`exec()`)** only for PRAGMA and DDL (`CREATE TABLE`, `ALTER TABLE`). **Never use
+   `exec()` for DML** (`INSERT`, `UPDATE`, `DELETE`) — use the Qlite ORM methods
+   (`.insert()`, `.update().with().set().perform()`, `.delete().with().perform()`). The pattern
+   `exec("UPDATE table SET col=%lld WHERE id='%s'".printf(...))` is SQL injection via string
+   interpolation, even with `%lld`/`%s` format specifiers
 6. **`INSERT OR IGNORE` + `last_insert_rowid()` is DANGEROUS** — when the INSERT is silently
    ignored (UNIQUE conflict), `last_insert_rowid()` returns the rowid of the *last successful*
    INSERT, which belongs to an *unrelated* row.  Always verify the returned ID matches the
@@ -390,6 +397,21 @@ public async Bytes? load_data() throws IOError {
     var stream = yield file.read_async();
     var bytes = yield stream.read_bytes_async(MAX_SIZE);
     return bytes;
+}
+```
+
+### Null Guards After Async Yield
+```vala
+// After yielding from an async method (especially one that spawns a thread
+// or waits on I/O), shared state may have been modified by other callbacks.
+// ALWAYS re-check shared pointers after yield:
+public async void process() {
+    if (connection == null) return;
+    yield connection.send_async(data);
+    // connection may have been set to null by a disconnect callback
+    // while we were suspended at the yield point!
+    if (connection == null) return;  // <-- MANDATORY null re-check
+    connection.finish();
 }
 ```
 
@@ -531,3 +553,5 @@ Category: Short description (max 72 characters)
 | 10 | Empty catch block | 5+ sites | At least `warning()` or cleanup comment |
 | 11 | Magic strings duplicated across files | 3+ sites | Define a `const string` in the owning class and reference it. Exception: when referencing the constant would create a wrong-direction dependency (e.g. core → plugin), document the duplication with a comment pointing to the source of truth |
 | 12 | `Adw.PreferencesGroup.get_first_child()` misuse | 4 sites | `get_first_child()` returns internal wrapper widgets, not the rows you added. Always track added rows in an `ArrayList<Widget>` and iterate that list for removal |
+| 13 | Enum ↔ UI dropdown mismatch | 1+ sites | UI dropdown label strings (e.g. "urgent") must exactly match the enum's `to_string()` keys (e.g. `Priority.CRITICAL`). A mismatch causes silent fallthrough to the default value. Always derive dropdown labels from the enum, or use a shared `const string` |
+| 14 | Nullable types in non-null collections | 2+ sites | Don't use nullable types (`int64?`, `string?`) in `HashMap` / `ArrayList` values when `null` is never stored. Unnecessary boxing wastes memory and weakens type safety. Use non-nullable types and guard at insertion instead |

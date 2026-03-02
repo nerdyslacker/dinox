@@ -54,6 +54,15 @@ uint32 device_id = (uint32) node.get_attribute_uint("rid", 0);
 
 // WRONG: int for uint32 values (Bug #8, #9)
 int device_id = node.get_attribute_int("rid");  // -1 when > INT_MAX!
+
+// CORRECT: Port number validation (1–65535)
+int port = int.parse(port_str ?? "0");
+if (port < 1 || port > 65535) {
+    warning("Invalid port number: %d", port);
+    port = DEFAULT_PORT;  // fallback to a safe default
+}
+// Port numbers loaded from DB, config, or user input MUST be range-checked.
+// int.parse() returns 0 on invalid input — always validate bounds.
 ```
 
 ### 2.3 String Input
@@ -66,12 +75,16 @@ if (input.length > MAX_INPUT_LENGTH) {
 }
 
 // Slash commands: ALWAYS check array length (Bug #111)
-string[] token = text.split(" ", 2);
+// Use the correct split limit to capture ALL remaining text:
+string[] token = text.split(" ", 2);  // limit=2 → token[1] gets entire remainder
 if (token.length < 2) {
     warning("Missing argument for command");
     return;
 }
-string argument = token[1];
+string argument = token[1];  // Contains full remaining text, not just one word
+// WRONG: split(" ", 3) then only using token[1] → truncates after second word
+// When splitting user input with a limit N, ensure the last token contains ALL
+// remaining text, and handlers receive the complete payload, not just the first N-1 words.
 
 // JID validation: ALWAYS try/catch
 try {
@@ -203,10 +216,21 @@ db.message.select()
     .with(db.message.stanza_id, "=", user_provided_id)  // Parameterized!
     .limit(1);
 
+// CORRECT: DML via ORM (insert/update/delete):
+db.settings.update()
+    .with(db.settings.key, "=", key)
+    .set(db.settings.value, new_value)
+    .perform();
+
 // WRONG: String concatenation (NEVER!):
 // db.exec(@"SELECT * FROM message WHERE stanza_id = '$id'");
 
-// Raw SQL only for PRAGMA and migrations:
+// WRONG: DML via exec() with string interpolation (SQL injection!):
+// db.exec("UPDATE table SET col=%lld WHERE id='%s'".printf(val, id));
+// Even with %lld/%s format specifiers, this bypasses parameterization.
+
+// Raw SQL (`exec()`) ONLY for PRAGMA and DDL (CREATE TABLE, ALTER TABLE).
+// NEVER use exec() for INSERT, UPDATE, or DELETE — always use the Qlite ORM.
 db.exec("PRAGMA journal_mode = WAL");
 ```
 
@@ -339,6 +363,49 @@ if (!Crypto.secure_compare(token, expected_token)) {
 }
 ```
 
+### 8.3 Configuration Reload vs Apply
+
+Plugins that support remote configuration changes (e.g. MQTT bot commands) must
+distinguish between **reading** config and **acting** on it:
+
+```vala
+// reload_config() — ONLY reads config from DB/file into memory.
+// apply_settings() — reads config AND acts on changes (reconnect, restart timers, etc.).
+//
+// Remote commands (e.g. !settings, !reload) MUST call apply_settings(),
+// not just reload_config(). Otherwise the new settings are loaded but
+// never take effect until the next manual restart.
+//
+// WRONG: reload_config() alone after remote command
+// CORRECT: apply_settings() which internally calls reload_config() + reconnect/restart
+```
+
+### 8.4 Connection Property Validation in Setters
+
+Network parameters (port, timeout, keepalive, retry intervals) must enforce
+invariants at the type level using `.clamp()` or range checks in property setters:
+
+```vala
+// CORRECT: Enforce at the setter level
+private int _port = 1883;
+public int port {
+    get { return _port; }
+    set { _port = value.clamp(1, 65535); }
+}
+
+private int _keepalive = 60;
+public int keepalive {
+    get { return _keepalive; }
+    set { _keepalive = value.clamp(5, 3600); }
+}
+
+// WRONG: Raw assignment without validation
+// this.port = int.parse(row["port"]);  // Could be 0, -1, or 99999
+```
+
+This prevents invalid values from propagating regardless of where the
+assignment originates (DB load, user input, remote command, default).
+
 ---
 
 ## 9. Logging Security
@@ -403,3 +470,6 @@ Before merging every new feature:
 - [ ] Error handling: Fail-secure on errors?
 - [ ] Sender validation: IQ / presence / message sender checked?
 - [ ] Integer safety: No overflow on uint32 / int conversion?
+- [ ] Port/network params: Range-validated (port 1–65535, timeouts clamped)?
+- [ ] Config commands: `apply_settings()` not just `reload_config()`?
+- [ ] Property setters: `.clamp()` or range checks for network parameters?

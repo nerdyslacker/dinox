@@ -117,7 +117,8 @@ public class MqttBridgeManager : Object {
     /* Bridge rules (loaded from DB) */
     private ArrayList<BridgeRule> rules = new ArrayList<BridgeRule>();
 
-    /* Rate limiting: track last send time per rule to avoid flooding */
+    /* Rate limiting: track last send time per rule to avoid flooding.
+     * int64? is required because Vala generics need boxed (nullable) types. */
     private HashMap<string, int64?> last_send_times =
         new HashMap<string, int64?>();
     private const int64 MIN_SEND_INTERVAL_SECS = 2;

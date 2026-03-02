@@ -539,6 +539,10 @@ public class MqttClient : Object {
         });
         yield;
 
+        /* Guard: mosq may have been nulled by disconnect_sync() while
+         * the reconnect thread was running — avoid crash. */
+        if (mosq == null) return;
+
         if (rc == Mosquitto.Error.SUCCESS) {
             setup_glib_sources();
             message("MQTT: Reconnect TCP OK, waiting for CONNACK…");

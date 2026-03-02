@@ -118,7 +118,10 @@ public class MqttCommandHandler : Object {
 
             case "publish":
             case "pub":
-                response = cmd_publish(arg1, arg2, conversation);
+                /* Combine arg2 + arg3 so multi-word payloads are not truncated.
+                 * split(" ",4) gives [subcmd, topic, word1, rest…] */
+                string pub_payload = (arg3 != "") ? arg2 + " " + arg3 : arg2;
+                response = cmd_publish(arg1, pub_payload, conversation);
                 break;
 
             case "topics":
@@ -1578,24 +1581,6 @@ public class MqttCommandHandler : Object {
         var gen = new Json.Generator();
         gen.set_root(builder.get_root());
         return gen.to_data(null);
-    }
-
-    /* ── DB helpers ──────────────────────────────────────────────── */
-
-    private string? get_db_setting(string key) {
-        var row_opt = plugin.app.db.settings.select({plugin.app.db.settings.value})
-            .with(plugin.app.db.settings.key, "=", key)
-            .single()
-            .row();
-        if (row_opt.is_present()) return row_opt[plugin.app.db.settings.value];
-        return null;
-    }
-
-    private void set_db_setting(string key, string val) {
-        plugin.app.db.settings.upsert()
-            .value(plugin.app.db.settings.key, key, true)
-            .value(plugin.app.db.settings.value, val)
-            .perform();
     }
 }
 

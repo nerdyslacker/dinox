@@ -652,17 +652,17 @@ public class MqttAlertManager : Object {
 
         /* BUG-10 fix: Only update last_triggered in the DB
          * rather than doing a full DELETE ALL + INSERT ALL cycle.
-         * This avoids an expensive save_rules() call on every alert. */
+         * This avoids an expensive save_rules() call on every alert.
+         *
+         * Uses Qlite ORM instead of raw exec() to avoid SQL injection
+         * and ensure the correct table name (mqtt_alert_rules). */
         if (result.triggered_rules.size > 0 && plugin.mqtt_db != null) {
             long ts = (long) MqttUtils.now_unix();
             foreach (var triggered_rule in result.triggered_rules) {
-                try {
-                    plugin.mqtt_db.exec(
-                        "UPDATE alert_rules SET last_triggered=%lld WHERE id='%s'"
-                        .printf((int64) ts, triggered_rule.id));
-                } catch (Error e) {
-                    warning("MQTT AlertManager: UPDATE last_triggered failed: %s", e.message);
-                }
+                plugin.mqtt_db.alert_rules.update()
+                    .with(plugin.mqtt_db.alert_rules.id, "=", triggered_rule.id)
+                    .set(plugin.mqtt_db.alert_rules.last_triggered, ts)
+                    .perform();
             }
         }
 

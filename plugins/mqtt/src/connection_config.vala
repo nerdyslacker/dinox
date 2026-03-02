@@ -34,8 +34,12 @@ public class MqttConnectionConfig : Object {
     /** Broker hostname or IP (empty = use account domain for per-account). */
     public string broker_host { get; set; default = ""; }
 
-    /** Broker port. */
-    public int broker_port { get; set; default = 1883; }
+    /** Broker port (1–65535, clamped on set). */
+    private int _broker_port = 1883;
+    public int broker_port {
+        get { return _broker_port; }
+        set { _broker_port = value.clamp(1, 65535); }
+    }
 
     /** Use TLS encryption. */
     public bool tls { get; set; default = false; }

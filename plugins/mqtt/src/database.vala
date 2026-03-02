@@ -539,6 +539,7 @@ public class MqttDatabase : Qlite.Database {
         var iter = topic_stats.select()
             .with(topic_stats.connection_id, "=", conn_id)
             .order_by(topic_stats.last_seen, "DESC")
+            .limit(10000)
             .iterator();
         while (iter.next()) {
             result.add(iter.get());
@@ -586,6 +587,7 @@ public class MqttDatabase : Qlite.Database {
         var result = new Gee.ArrayList<Row>();
         var iter = topic_stats.select()
             .order_by(topic_stats.last_seen, "DESC")
+            .limit(10000)
             .iterator();
         while (iter.next()) {
             result.add(iter.get());

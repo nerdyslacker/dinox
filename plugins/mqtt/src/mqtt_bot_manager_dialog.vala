@@ -615,10 +615,10 @@ public class MqttBotManagerDialog : Adw.Dialog {
         alert_threshold_entry.text = "";
         add_group.add(alert_threshold_entry);
 
-        /* Priority dropdown */
-        string[] prio_labels = { "normal", "alert", "urgent" };
+        /* Priority dropdown — must match MqttPriority enum values */
+        string[] prio_labels = { "silent", "normal", "alert", "critical" };
         alert_priority_dropdown = new DropDown.from_strings(prio_labels);
-        alert_priority_dropdown.selected = 1; /* default: alert */
+        alert_priority_dropdown.selected = 2; /* default: alert */
         var prio_row = new Adw.ActionRow();
         prio_row.title = _("Priority");
         prio_row.add_suffix(alert_priority_dropdown);
@@ -1097,8 +1097,8 @@ public class MqttBotManagerDialog : Adw.Dialog {
         AlertOperator? op = AlertOperator.from_string(op_str);
         if (op == null) op = AlertOperator.CONTAINS;
 
-        /* Map priority dropdown */
-        string[] prio_values = { "normal", "alert", "urgent" };
+        /* Map priority dropdown — must match MqttPriority enum values */
+        string[] prio_values = { "silent", "normal", "alert", "critical" };
         int prio_idx = (int) alert_priority_dropdown.selected;
         MqttPriority prio = MqttPriority.from_string(prio_values[prio_idx]);
 
@@ -1119,7 +1119,7 @@ public class MqttBotManagerDialog : Adw.Dialog {
         alert_field_entry.text = "";
         alert_threshold_entry.text = "";
         alert_op_dropdown.selected = 0;
-        alert_priority_dropdown.selected = 1;
+        alert_priority_dropdown.selected = 2;  /* reset to "alert" */
 
         populate_alerts_list();
     }
@@ -1438,7 +1438,7 @@ public class MqttBotManagerDialog : Adw.Dialog {
                 arr = root.get_array();
             }
         } catch (Error e) {
-            /* Start fresh */
+            warning("MqttBotManagerDialog.on_add_preset: JSON parse failed: %s", e.message);
         }
 
         var obj = new Json.Object();
@@ -1528,7 +1528,8 @@ public class MqttBotManagerDialog : Adw.Dialog {
                 /* Custom broker mode */
                 config.broker_host = broker_host_entry.text.strip();
                 string port_text = broker_port_entry.text.strip();
-                config.broker_port = port_text != "" ? int.parse(port_text) : 1883;
+                int raw_port = port_text != "" ? int.parse(port_text) : 1883;
+                config.broker_port = (raw_port > 0 && raw_port <= 65535) ? raw_port : 1883;
                 config.tls = tls_switch.active;
                 config.use_xmpp_auth = false;
                 config.username = username_entry.text.strip();

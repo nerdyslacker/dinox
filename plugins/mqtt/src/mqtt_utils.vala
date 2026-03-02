@@ -118,7 +118,7 @@ public class MqttUtils : Object {
                     }
                 }
             } catch (GLib.Error e) {
-                /* not valid JSON */
+                debug("MqttUtils.try_extract_numeric: JSON parse failed: %s", e.message);
             }
         }
 
@@ -203,6 +203,7 @@ public class MqttUtils : Object {
      * @return The original or truncated string
      */
     public static string truncate_string(string s, int max_len) {
+        if (max_len <= 3) return s;
         if (s.length <= max_len) return s;
         return s.substring(0, max_len - 3) + "...";
     }

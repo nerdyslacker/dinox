@@ -331,7 +331,11 @@ public class MqttBotConversation : Object {
 
         var cm = app.stream_interactor.get_module<ConversationManager>(
             ConversationManager.IDENTITY);
-        cm.close_conversation(conv);
+        if (cm == null) {
+            warning("MQTT Bot: ConversationManager not available, cannot close conversation");
+        } else {
+            cm.close_conversation(conv);
+        }
         bot_conversations.unset(key);
 
         message("MQTT Bot: Conversation removed for %s", key);

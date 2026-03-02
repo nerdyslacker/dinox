@@ -233,9 +233,11 @@ public class MqttDiscoveryManager : GLib.Object {
         if (cmd != "PRESS") return false;
 
         message("MQTT Discovery: Reconnect triggered via HA command for node=%s", node_id);
-        /* Schedule reconnect on main loop to avoid re-entrant issues */
+        /* Schedule reconnect on main loop to avoid re-entrant issues.
+         * apply_settings() reloads config AND reconnects; reload_config()
+         * alone only reads the DB without acting on the change. */
         Idle.add(() => {
-            plugin.reload_config();
+            plugin.apply_settings();
             return false;  /* run once */
         });
         return true;

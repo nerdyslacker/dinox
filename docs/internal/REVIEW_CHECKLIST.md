@@ -61,6 +61,7 @@ var row = table.row_with(id);      // -> may not exist!
 | 3.5 | [ ] Migration robust? Correct severity on failure? | Schema changes (ALTER TABLE, CREATE TABLE): `error()` — corruption is fatal. Data-cleanup migrations (DELETE orphans, UPDATE dangling refs): `warning()` is OK — DB remains valid, only cosmetic leftovers on failure |
 | 3.6 | [ ] New table with correct column types? | `Column.Integer` vs `Column.Long` vs `Column.BoolInt` |
 | 3.7 | [ ] `last_insert_rowid()` safe after `INSERT OR IGNORE`? | Returns stale rowid when INSERT is silently ignored — verify ID or lookup existing row first |
+| 3.8 | [ ] No `exec()` for DML (INSERT/UPDATE/DELETE)? | `exec()` only for PRAGMA and DDL. Use Qlite ORM (`.insert()`, `.update()`, `.delete()`) for all data manipulation — `exec("UPDATE...".printf(...))` is SQL injection |
 
 ---
 
@@ -68,7 +69,7 @@ var row = table.row_with(id);      // -> may not exist!
 
 | # | Check | Details |
 |---|-------|---------|
-| 4.1 | [ ] No empty `catch` block (except documented cleanup)? | At least `warning()` or `// cleanup, ignore` |
+| 4.1 | [ ] No empty `catch` block (except documented cleanup)? | At minimum `debug()` log, or `warning()`/`critical()`, or `// cleanup, ignore` comment. Never silently swallow exceptions |
 | 4.2 | [ ] `throws` declared and documented correctly? | Callers must know what can be thrown |
 | 4.3 | [ ] Error severity appropriate? | `error()` only for fatal, `warning()` for handled |
 | 4.4 | [ ] Error message includes context? | `"Failed to parse X: %s"` not just `"%s"` |
@@ -104,6 +105,8 @@ var row = table.row_with(id);      // -> may not exist!
 | 6.4 | [ ] Robust against missing mandatory attributes? | Spec-MANDATORY != implementation-GUARANTEED |
 | 6.5 | [ ] `write_async()` instead of `write()` for stanza sending? | `write()` is deprecated and swallows errors |
 | 6.6 | [ ] STARTTLS rejection leads to connection abort? | Never proceed with TLS upgrade anyway |
+| 6.7 | [ ] Port numbers range-checked (1–65535)? | `int.parse()` returns 0 on invalid input; always validate bounds |
+| 6.8 | [ ] Network property setters use `.clamp()` or range checks? | Port, timeout, keepalive must enforce invariants at the type level |
 
 ---
 
@@ -132,6 +135,7 @@ var row = table.row_with(id);      // -> may not exist!
 | 8.5 | [ ] DB index for new query? | Test with `explain query plan` if in doubt |
 | 8.6 | [ ] Async for I/O > 16 ms? | File, network, crypto |
 | 8.7 | [ ] Cached entries validated on access? | External state (e.g. `active=false`) can change behind the cache — reactivate or evict stale entries |
+| 8.8 | [ ] Nullable types only where null is actually stored? | Don't use `int64?` or `string?` in collections when null is never a valid value — wastes memory and weakens type safety |
 
 ---
 
@@ -157,6 +161,10 @@ var row = table.row_with(id);      // -> may not exist!
 | 10.4 | [ ] Naming consistent? | PascalCase classes, snake_case methods |
 | 10.5 | [ ] Dead code removed? | Commented-out code, unreachable branches |
 | 10.6 | [ ] 4-space indentation? | No tabs |
+| 10.7 | [ ] Enum values match UI labels exactly? | Dropdown/combo strings must match enum `to_string()` keys (e.g. "critical" not "urgent") |
+| 10.8 | [ ] Shared state re-checked after `yield`? | After async yield, other callbacks may have nullified shared pointers — always null-check again |
+| 10.9 | [ ] `split()` limit captures full remainder? | When splitting user input, ensure the last token contains ALL remaining text for handlers |
+| 10.10 | [ ] `reload_config()` vs `apply_settings()` correct? | Remote commands must call `apply_settings()` (read + act), not just `reload_config()` (read only) |
 
 ---
 
