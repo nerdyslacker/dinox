@@ -136,6 +136,20 @@ public class MqttDiscoveryManager : GLib.Object {
     }
 
     /**
+     * Get all system-managed topics (HA status + command topics).
+     * Used by sync_topics_to_client_cfg to avoid accidentally unsubscribing
+     * discovery/command topics when syncing user-managed topic changes.
+     */
+    public Gee.Set<string> get_system_topics() {
+        var topics = new Gee.HashSet<string>();
+        topics.add(get_ha_status_topic());
+        topics.add(command_topic(ENTITY_ALERTS_PAUSE));
+        topics.add(command_topic(ENTITY_RECONNECT));
+        topics.add(command_topic(ENTITY_REFRESH));
+        return topics;
+    }
+
+    /**
      * Subscribe to the HA status topic and all command topics.
      * When HA (re)starts, it sends "online" to <prefix>/status.
      * We re-publish our discovery configs + states in response.

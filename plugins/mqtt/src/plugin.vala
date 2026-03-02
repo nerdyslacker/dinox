@@ -611,16 +611,29 @@ public class Plugin : RootInterface, Object {
     }
 
     /**
-     * Sync topics from config to an active client — subscribe new, unsubscribe removed.
+     * Sync topics from config to a client — subscribe new, unsubscribe removed.
+     * Works even when the client is temporarily disconnected: subscribe()
+     * and unsubscribe() always update the subscribed_topics map, which is
+     * replayed on reconnect by handle_connect().  Without this, a topic
+     * deletion saved while the connection is briefly down would be lost.
      */
     private void sync_topics_to_client_cfg(MqttClient client, MqttConnectionConfig cfg) {
-        if (!client.is_connected) return;
-
         /* Build set of wanted topics from the config's topic string */
         var wanted = new Gee.HashSet<string>();
         foreach (string t in cfg.get_topic_list()) {
             string trimmed = t.strip();
             if (trimmed != "") wanted.add(trimmed);
+        }
+
+        /* Preserve freetext response topic — subscribed separately by create_client */
+        if (cfg.freetext_enabled) {
+            string frt = cfg.freetext_response_topic.strip();
+            if (frt != "") wanted.add(frt);
+        }
+
+        /* Preserve HA Discovery system topics (status + command topics) */
+        foreach (var entry in discovery_managers.entries) {
+            wanted.add_all(entry.value.get_system_topics());
         }
 
         /* Unsubscribe topics that are no longer wanted.
@@ -788,8 +801,10 @@ public class Plugin : RootInterface, Object {
             if (state == ConnectionManager.ConnectionState.CONNECTED) {
                 /* Already online — connect MQTT now */
                 string jid = account.bare_jid.to_string();
-                if (!account_clients.has_key(jid) &&
-                    !connecting_accounts.contains(jid)) {
+                if (account_clients.has_key(jid)) {
+                    /* Already connected — re-sync topics (subscribe new, unsubscribe removed) */
+                    sync_topics_to_client_cfg(account_clients[jid], cfg);
+                } else if (!connecting_accounts.contains(jid)) {
                     connecting_accounts.add(jid);
                     start_per_account.begin(account, (obj, res) => {
                         start_per_account.end(res);
