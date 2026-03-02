@@ -5,6 +5,39 @@ All notable changes to DinoX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4.6] - 2026-03-02
+
+### Fixed
+- **ICE/DTLS Handshake Timeout**: Fixed outgoing call DTLS timeout — handshake was started before ICE connectivity, wasting the 20s timeout. Now deferred to `on_component_state_changed` (same as incoming calls). Also fixed stale stop-flag race in `setup_dtls_connection_thread`, increased timeout to 30s, and improved error messages with mode info
+- **MQTT Bridge Duplicate Messages**: Bridge messages no longer appear in both bot chat AND target MUC — `evaluate()` returns bool, bot injection skipped when bridged
+- **GLib-CRITICAL in history_sync.vala**: NULL DateTime guard on `mam_times[account][latest_mam_id].to_unix()` at lines 238 and 350
+- **GLib-CRITICAL g_date_time_to_unix**: Additional NULL guards for all remaining DateTime calls in MQTT plugin files
+- **Adwaita-CRITICAL stale widgets**: Guard `populate_*_list()` against orphaned widgets after back-navigation
+- **MQTT Bridge auto-subscribe**: 3-bug fix — auto-subscribe on add, remove dead JSON fields, XMPP-offline queue
+
+### Added
+- **MQTT Bridge `send_account` field**: Mandatory account selector (DropDown) on bridge rules — explicitly choose which XMPP account sends bridged messages. Fixes "Only occupants are allowed to send messages" when standalone bridge targets a MUC. DB v3→v4 migration with auto-backfill for legacy rules
+- **MQTT Bridge alias in messages**: Formatted bridge messages now show alias instead of raw topic path
+- **MQTT Bridge client scoping**: Rules scoped to their MQTT client label — prevents cross-broker duplicate delivery
+- **MQTT Bridge MUC delivery**: Bridge detects MUC targets via `MucManager.is_groupchat()` and uses proper MUC send path
+- **MQTT Bridge edit support**: Inline edit for bridge rules (topic, JID, alias, format, account)
+- **Topic subscription inline edit**: Edit button fills topic/QoS/alias form fields, "Subscribe" becomes "Save" — consistent with bridge UI pattern
+- **Topic subscription edit dialog**: Full edit dialog for existing subscriptions (topic + alias + QoS)
+
+### Improved
+- **MQTT Bot Manager dialog**: No longer auto-closes after Save & Apply
+- **MQTT topic deletion**: Fixed 3 bugs where deletion wasn't applied until on/off toggle
+- **MUC creation privacy**: Always set explicit room config (non-public, members-only) — prevents accidental public room creation
+- **MUC creation context menu**: Fixed context menu creation, details dialog, autojoin + GTK warning
+- **MQTT Topic Aliases**: UI completion with reconnect, pause, per-topic QoS/Priority
+- **MQTT Bot UI/UX overhaul**: DB orphan cleanup + self-review fixes
+- **Documentation**: MQTT_PLUGIN.md and MQTT_UI_GUIDE.md updated to v1.6.0
+- **Static analysis**: Clone removal + dead code cleanup
+- **Security audit tables**: Cleaned up Fix columns for readability
+
+### Changed
+- **Version**: 1.1.4.5 → 1.1.4.6
+
 ## [1.1.4.5] - 2026-03-01
 
 ### Fixed

@@ -1,6 +1,6 @@
 # DinoX - Development Plan
 
-> **Last Updated**: March 1, 2026 (v1.1.4.5)
+> **Last Updated**: March 2, 2026 (v1.1.4.6)
 > **Current Release Line**: 1.1.4.x
 
 This document is organized as a **chronological release timeline** first, followed by a **forward-looking roadmap**.
@@ -11,7 +11,7 @@ This document is organized as a **chronological release timeline** first, follow
 
 | Metric | Status |
 |--------|--------|
-| **Current Version** | 1.1.4.5 |
+| **Current Version** | 1.1.4.6 |
 | **XEPs Implemented** | ~78 |
 | **Languages** | 47 (~85% translated) |
 | **Build Status** | Clean |
@@ -20,6 +20,16 @@ This document is organized as a **chronological release timeline** first, follow
 ---
 
 ## Timeline (Recent Releases)
+
+### v1.1.4.6 (MQTT Bridge send_account, ICE/DTLS Fix, MUC Fixes)
+
+- **ICE/DTLS Handshake Fix**: Outgoing call DTLS timeout fixed — deferred to ICE-ready, stale stop-flag race fixed, timeout 20→30s
+- **MQTT Bridge send_account**: Mandatory account selector on bridge rules, DB v4 migration, auto-backfill for legacy rules
+- **MQTT Bridge Improvements**: Client scoping, MUC delivery, alias in messages, inline edit, duplicate bot-chat suppression
+- **Topic Subscriptions**: Inline edit form + full edit dialog for existing subscriptions
+- **MUC Creation**: Privacy fix (explicit room config), context menu fix, autojoin fix
+- **GLib-CRITICAL Fixes**: history_sync.vala DateTime NULL guards, MQTT DateTime guards, Adwaita stale widget guards
+- **Docs & Cleanup**: MQTT docs v1.6.0, static analysis cleanup, audit table formatting
 
 ### v1.1.4.5 (Bugfix Release — 140 Fixes, Performance, Test Suite)
 
