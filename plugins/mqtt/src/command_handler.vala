@@ -1053,6 +1053,9 @@ public class MqttCommandHandler : Object {
         rule.topic = topic;
         rule.target_jid = jid_str;
         rule.client_label = label;
+        /* send_account: When the command is typed in a conversation,
+         * use that conversation's account as the sender. */
+        rule.send_account = conversation.account.bare_jid.to_string();
         bm.add_rule(rule);
 
         /* Subscribe immediately on the correct client */

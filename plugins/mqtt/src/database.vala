@@ -28,7 +28,7 @@ namespace Dino.Plugins.Mqtt {
 
 public class MqttDatabase : Qlite.Database {
 
-    private const int VERSION = 3;
+    private const int VERSION = 4;
 
     /* ══════════════════════════════════════════════════════════════════
      *  Table 1: mqtt_messages — Received MQTT messages
@@ -186,11 +186,12 @@ public class MqttDatabase : Qlite.Database {
         public Column<bool> enabled = new Column.BoolInt("enabled") { default = "1" };
         public Column<string?> alias = new Column.Text("alias");  /* v2: human-readable name */
         public Column<string> client_label = new Column.NonNullText("client_label") { default = "'standalone'" };  /* v3: which MQTT client */
+        public Column<string?> send_account = new Column.Text("send_account");  /* v4: bare JID of XMPP account to send from */
         public Column<long> created_at = new Column.Long("created_at") { default = "0" };
 
         internal BridgeRulesTable(MqttDatabase db) {
             base(db, "mqtt_bridge_rules");
-            init({id, connection_id, topic, target_jid, format, enabled, alias, client_label, created_at});
+            init({id, connection_id, topic, target_jid, format, enabled, alias, client_label, send_account, created_at});
             index("mqtt_bridge_rules_topic_idx", {topic});
         }
     }
@@ -340,6 +341,15 @@ public class MqttDatabase : Qlite.Database {
                 exec("ALTER TABLE mqtt_bridge_rules ADD COLUMN client_label TEXT NOT NULL DEFAULT 'standalone'");
             } catch (Error e) {
                 warning("MqttDatabase migrate v3: %s", e.message);
+            }
+        }
+        if (old_version < 4) {
+            /* v4: Add send_account column to bridge_rules table.
+             * Explicit XMPP account to send from (bare JID). */
+            try {
+                exec("ALTER TABLE mqtt_bridge_rules ADD COLUMN send_account TEXT DEFAULT NULL");
+            } catch (Error e) {
+                warning("MqttDatabase migrate v4: %s", e.message);
             }
         }
     }

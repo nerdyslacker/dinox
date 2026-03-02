@@ -30,6 +30,7 @@ public class BridgeRule : Object {
     public string? format;      /* Optional format: "full" (default), "payload", "short" */
     public string? alias;       /* Human-readable display name for the topic */
     public string client_label; /* Which MQTT client owns this rule: "standalone" or account bare JID */
+    public string? send_account; /* Bare JID of the XMPP account to send from (mandatory for delivery) */
 
     public BridgeRule() {
         id = Xmpp.random_uuid();
@@ -37,6 +38,7 @@ public class BridgeRule : Object {
         format = "full";
         alias = null;
         client_label = "standalone";
+        send_account = null;
     }
 
     /**
@@ -67,6 +69,7 @@ public class BridgeRule : Object {
         if (format != null) obj.set_string_member("format", format);
         if (alias != null) obj.set_string_member("alias", alias);
         obj.set_string_member("client_label", client_label);
+        if (send_account != null) obj.set_string_member("send_account", send_account);
         return obj;
     }
 
@@ -92,6 +95,8 @@ public class BridgeRule : Object {
             rule.alias = obj.get_string_member("alias");
         if (obj.has_member("client_label"))
             rule.client_label = obj.get_string_member("client_label");
+        if (obj.has_member("send_account"))
+            rule.send_account = obj.get_string_member("send_account");
 
         return rule;
     }
@@ -190,13 +195,14 @@ public class MqttBridgeManager : Object {
      * Returns true if the rule was found and updated.
      */
     public bool update_rule(string id, string topic, string target_jid,
-                             string? format, string? alias) {
+                             string? format, string? alias, string? send_account) {
         foreach (var rule in rules) {
             if (rule.id == id) {
                 rule.topic = topic;
                 rule.target_jid = target_jid;
                 rule.format = format ?? "full";
                 rule.alias = alias;
+                rule.send_account = send_account;
                 /* client_label is NOT changed on edit — the rule stays
                  * bound to the same MQTT client it was created for. */
                 save_rules();
@@ -239,6 +245,12 @@ public class MqttBridgeManager : Object {
             if (rule.client_label != source) continue;
             if (!rule.matches_topic(topic)) continue;
 
+            /* Skip rules without a configured send account */
+            if (rule.send_account == null || rule.send_account.strip() == "") {
+                warning("MQTT Bridge: Rule '%s' has no send_account, skipping", rule.topic);
+                continue;
+            }
+
             /* Rate limiting */
             int64 now = MqttUtils.now_unix();
             if (last_send_times.has_key(rule.id)) {
@@ -250,7 +262,7 @@ public class MqttBridgeManager : Object {
 
             /* Format and send */
             string body = rule.format_message(topic, payload);
-            send_xmpp_message(source, rule.target_jid, body);
+            send_xmpp_message(rule.send_account, rule.target_jid, body);
             forwarded = true;
         }
         return forwarded;
@@ -370,28 +382,20 @@ public class MqttBridgeManager : Object {
     }
 
     /**
-     * Find the Account for a given source label.
+     * Find the Account for a given bare JID.
      */
-    private Account? find_account(string source) {
+    private Account? find_account(string bare_jid) {
         var accounts = plugin.app.stream_interactor.get_accounts();
 
-        if (source == "standalone") {
-            /* Use first connected account */
-            foreach (var acct in accounts) {
+        foreach (var acct in accounts) {
+            if (acct.bare_jid.to_string() == bare_jid) {
                 var state = plugin.app.stream_interactor.connection_manager
                     .get_state(acct);
                 if (state == ConnectionManager.ConnectionState.CONNECTED) {
                     return acct;
                 }
-            }
-            /* BUG-12 fix: Do not fall back to a disconnected account */
-            return null;
-        }
-
-        /* Per-account: source is the bare JID */
-        foreach (var acct in accounts) {
-            if (acct.bare_jid.to_string() == source) {
-                return acct;
+                /* Account exists but not connected */
+                return null;
             }
         }
 
@@ -416,6 +420,7 @@ public class MqttBridgeManager : Object {
                 rule.enabled = plugin.mqtt_db.bridge_rules.enabled[row];
                 rule.alias = plugin.mqtt_db.bridge_rules.alias[row];
                 rule.client_label = plugin.mqtt_db.bridge_rules.client_label[row];
+                rule.send_account = plugin.mqtt_db.bridge_rules.send_account[row];
                 rules.add(rule);
             }
 
@@ -479,6 +484,7 @@ public class MqttBridgeManager : Object {
                         .value(plugin.mqtt_db.bridge_rules.enabled, rule.enabled)
                         .value(plugin.mqtt_db.bridge_rules.alias, rule.alias)
                         .value(plugin.mqtt_db.bridge_rules.client_label, rule.client_label)
+                        .value(plugin.mqtt_db.bridge_rules.send_account, rule.send_account)
                         .value(plugin.mqtt_db.bridge_rules.created_at, now)
                         .perform();
                 }

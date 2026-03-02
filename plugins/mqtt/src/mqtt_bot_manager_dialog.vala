@@ -86,6 +86,9 @@ public class MqttBotManagerDialog : Adw.Dialog {
     private Adw.EntryRow bridge_jid_entry;
     private Adw.EntryRow bridge_alias_entry;
     private DropDown bridge_format_dropdown;
+    private DropDown bridge_account_dropdown;
+    private Gtk.StringList bridge_account_model;
+    private Button bridge_add_btn;
 
     /* Publish page widgets */
     private Adw.PreferencesGroup presets_group;
@@ -685,12 +688,33 @@ public class MqttBotManagerDialog : Adw.Dialog {
         format_row.add_suffix(bridge_format_dropdown);
         add_group.add(format_row);
 
-        var add_btn = new Button.with_label(_("Add Bridge"));
-        add_btn.add_css_class("suggested-action");
-        add_btn.halign = Align.END;
-        add_btn.margin_top = 8;
-        add_btn.clicked.connect(on_add_bridge);
-        add_group.add(add_btn);
+        /* Send-account dropdown (mandatory): which XMPP account sends */
+        bridge_account_model = new Gtk.StringList(null);
+        var accounts = plugin.app.stream_interactor.get_accounts();
+        foreach (var acct in accounts) {
+            bridge_account_model.append(acct.bare_jid.to_string());
+        }
+        bridge_account_dropdown = new DropDown(bridge_account_model, null);
+        /* Pre-select: for per-account dialog, pick this account */
+        if (!is_standalone && account != null) {
+            for (uint i = 0; i < bridge_account_model.get_n_items(); i++) {
+                if (bridge_account_model.get_string(i) == account.bare_jid.to_string()) {
+                    bridge_account_dropdown.selected = i;
+                    break;
+                }
+            }
+        }
+        var account_row = new Adw.ActionRow();
+        account_row.title = _("Send as account");
+        account_row.add_suffix(bridge_account_dropdown);
+        add_group.add(account_row);
+
+        bridge_add_btn = new Button.with_label(_("Add Bridge"));
+        bridge_add_btn.add_css_class("suggested-action");
+        bridge_add_btn.halign = Align.END;
+        bridge_add_btn.margin_top = 8;
+        bridge_add_btn.clicked.connect(on_add_bridge);
+        add_group.add(bridge_add_btn);
 
         page.add(add_group);
 
@@ -1107,6 +1131,12 @@ public class MqttBotManagerDialog : Adw.Dialog {
         string jid = bridge_jid_entry.text.strip();
         if (topic == "" || jid == "") return;
 
+        /* send_account is mandatory */
+        uint acct_idx = bridge_account_dropdown.selected;
+        if (acct_idx == Gtk.INVALID_LIST_POSITION || acct_idx >= bridge_account_model.get_n_items()) return;
+        string send_acct = bridge_account_model.get_string(acct_idx);
+        if (send_acct == null || send_acct.strip() == "") return;
+
         string alias_text = bridge_alias_entry.text.strip();
         string? alias_val = (alias_text != "") ? alias_text : null;
 
@@ -1119,8 +1149,9 @@ public class MqttBotManagerDialog : Adw.Dialog {
             if (editing_bridge_id != null) {
                 /* Update existing rule */
                 plugin.bridge_manager.update_rule(
-                    editing_bridge_id, topic, jid, format, alias_val);
+                    editing_bridge_id, topic, jid, format, alias_val, send_acct);
                 editing_bridge_id = null;
+                bridge_add_btn.label = _("Add Bridge");
             } else {
                 /* Create new rule */
                 var rule = new BridgeRule();
@@ -1129,6 +1160,7 @@ public class MqttBotManagerDialog : Adw.Dialog {
                 rule.alias = alias_val;
                 rule.format = format;
                 rule.client_label = get_client_label();
+                rule.send_account = send_acct;
                 plugin.bridge_manager.add_rule(rule);
             }
         }
@@ -1247,6 +1279,9 @@ public class MqttBotManagerDialog : Adw.Dialog {
             if (alias != null) {
                 subtitle += " | %s".printf(rule.topic);
             }
+            if (rule.send_account != null && rule.send_account.strip() != "") {
+                subtitle += " | via %s".printf(rule.send_account);
+            }
             row.subtitle = subtitle;
 
             /* ── Edit button ── */
@@ -1297,6 +1332,19 @@ public class MqttBotManagerDialog : Adw.Dialog {
             if (formats[i] == (rule.format ?? "full")) { idx = i; break; }
         }
         bridge_format_dropdown.selected = idx;
+
+        /* Select the correct account in the dropdown */
+        if (rule.send_account != null) {
+            for (uint i = 0; i < bridge_account_model.get_n_items(); i++) {
+                if (bridge_account_model.get_string(i) == rule.send_account) {
+                    bridge_account_dropdown.selected = i;
+                    break;
+                }
+            }
+        }
+
+        /* Switch button label to "Save" */
+        bridge_add_btn.label = _("Save");
 
         /* Visual cue: scroll to top / focus topic entry */
         bridge_topic_entry.grab_focus();
