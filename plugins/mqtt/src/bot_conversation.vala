@@ -18,15 +18,18 @@ namespace Dino.Plugins.Mqtt {
  * Manages the lifecycle of the MQTT Bot conversation(s).
  *
  * Each MQTT connection (per-account or standalone) gets its own
- * bot conversation with a unique JID:
- *   mqtt-bot@mqtt.local/<connection_key>
+ * bot conversation with a UNIQUE bare JID:
  *
- * Where connection_key is:
- *   - Account bare JID (e.g. "user@example.org") for per-account
- *   - "standalone" for standalone connections
+ *   Per-account: mqtt-bot@mqtt.local/<account_bare_jid>
+ *   Standalone:  mqtt-standalone@mqtt.local
  *
- * The resource part distinguishes the conversations in the DB
- * while equals_bare() still matches all bots for command interception.
+ * ConversationManager strips resources for CHAT-type conversations,
+ * so standalone MUST use a different localpart ("mqtt-standalone")
+ * to prevent collision with per-account conversations when both
+ * use the same XMPP account.
+ *
+ * Domain check (counterpart.domainpart == "mqtt.local") matches
+ * all bot conversations for command interception.
  */
 public class MqttBotConversation : Object {
 
@@ -34,6 +37,16 @@ public class MqttBotConversation : Object {
     public const string BOT_DOMAIN = "mqtt.local";
     public const string BOT_LOCALPART = "mqtt-bot";
     public const string BOT_JID_STR = BOT_LOCALPART + "@" + BOT_DOMAIN;
+
+    /* Standalone uses a DIFFERENT bare JID so its Conversation never
+     * collides with per-account bot conversations in ConversationManager.
+     * Without this, ConversationManager strips the resource for CHAT-type
+     * conversations and both resolve to mqtt-bot@mqtt.local on the same
+     * account → same Conversation object → enable/disable cross-wiring
+     * and mixed-up messages (BUG-CRITICAL). */
+    public const string STANDALONE_LOCALPART = "mqtt-standalone";
+    public const string STANDALONE_JID_STR = STANDALONE_LOCALPART + "@" + BOT_DOMAIN;
+
     public const string STANDALONE_KEY = "standalone";
 
     /* Back-references */
@@ -48,8 +61,9 @@ public class MqttBotConversation : Object {
     private HashMap<string, Jid> bot_jids =
         new HashMap<string, Jid>();
 
-    /* Base bare JID (without resource) for is_bot_conversation checks */
+    /* Base bare JIDs — per-account uses BOT_JID_STR, standalone uses STANDALONE_JID_STR */
     private Jid? mqtt_bot_bare_jid = null;
+    private Jid? mqtt_standalone_bare_jid = null;
 
     /* ── Construction ────────────────────────────────────────────── */
 
@@ -61,6 +75,11 @@ public class MqttBotConversation : Object {
             mqtt_bot_bare_jid = new Jid(BOT_JID_STR);
         } catch (InvalidJidError e) {
             warning("MQTT Bot: Cannot create bot JID: %s", e.message);
+        }
+        try {
+            mqtt_standalone_bare_jid = new Jid(STANDALONE_JID_STR);
+        } catch (InvalidJidError e) {
+            warning("MQTT Bot: Cannot create standalone JID: %s", e.message);
         }
     }
 
@@ -116,22 +135,32 @@ public class MqttBotConversation : Object {
 
     /**
      * Create or retrieve the bot JID for a given connection key.
-     * JID format: mqtt-bot@mqtt.local/<connection_key>
      *
-     * For per-account: connection_key = account bare JID
-     *   → mqtt-bot@mqtt.local/user@example.org
-     * For standalone: connection_key = "standalone"
-     *   → mqtt-bot@mqtt.local/standalone
+     * Standalone and per-account use DIFFERENT bare JIDs to prevent
+     * ConversationManager from collapsing them into the same conversation:
+     *
+     *   Per-account: mqtt-bot@mqtt.local/<bare_jid>
+     *   Standalone:  mqtt-standalone@mqtt.local   (no resource needed)
+     *
+     * ConversationManager strips resources for CHAT-type conversations,
+     * so the bare JID MUST differ between standalone and per-account.
      */
     private Jid? make_bot_jid(string connection_key) {
         if (bot_jids.has_key(connection_key)) {
             return bot_jids[connection_key];
         }
 
-        if (mqtt_bot_bare_jid == null) return null;
-
         try {
-            var jid = mqtt_bot_bare_jid.with_resource(connection_key);
+            Jid jid;
+            if (connection_key == STANDALONE_KEY) {
+                /* Standalone: use dedicated bare JID (no resource) */
+                if (mqtt_standalone_bare_jid == null) return null;
+                jid = mqtt_standalone_bare_jid;
+            } else {
+                /* Per-account: use per-account bare JID + resource */
+                if (mqtt_bot_bare_jid == null) return null;
+                jid = mqtt_bot_bare_jid.with_resource(connection_key);
+            }
             bot_jids[connection_key] = jid;
             return jid;
         } catch (InvalidJidError e) {
@@ -159,7 +188,7 @@ public class MqttBotConversation : Object {
 
     /**
      * Ensure the standalone bot (using first available account).
-     * JID: mqtt-bot@mqtt.local/standalone
+     * JID: mqtt-standalone@mqtt.local (different bare JID from per-account).
      */
     public Conversation? ensure_standalone_conversation() {
         var accounts = app.stream_interactor.get_accounts();
@@ -186,24 +215,14 @@ public class MqttBotConversation : Object {
     /**
      * Internal: create/get conversation for a connection key.
      *
-     * CRITICAL — After app restart, ConversationManager reloads conversations
-     * from DB via Conversation.from_row().  That method strips the resource
-     * for CHAT-type conversations: mqtt-bot@mqtt.local/standalone becomes
-     * mqtt-bot@mqtt.local.  The in-memory HashMap key is therefore the
-     * bare JID, while we look up by full JID (with resource) which does
-     * not match.
+     * Since standalone uses mqtt-standalone@mqtt.local and per-account
+     * uses mqtt-bot@mqtt.local, their bare JIDs never collide in
+     * ConversationManager — even when both use the same XMPP account.
      *
-     * If we blindly call create_conversation() with the full JID, the
-     * HashMap miss causes a new Conversation object + persist() call.
-     * persist() INSERTs into a table with UNIQUE(account_id, jid_id, type_)
-     * ON CONFLICT IGNORE — SQLite silently ignores the insert and
-     * last_insert_rowid() returns the rowid of an UNRELATED conversation.
-     * The Conversation object then carries the WRONG id, causing messages
-     * from that other conversation to leak into the bot chat.
-     *
-     * Fix: Always look up by BARE JID first to find DB-loaded conversations
-     * before attempting to create a new one (BUG-CRITICAL: conversation ID
-     * collision / cross-chat message leak).
+     * Note: ConversationManager strips resources for CHAT conversations.
+     * The bare JID lookup (jid.bare_jid) will find DB-loaded conversations
+     * after restart.  For per-account with multiple accounts, the different
+     * account_id in the DB prevents collision.
      */
     private Conversation? ensure_conversation_for_key(string key, Account account) {
         if (bot_conversations.has_key(key)) {
@@ -354,12 +373,11 @@ public class MqttBotConversation : Object {
 
     /**
      * Check if a conversation belongs to the MQTT bot.
-     * Uses bare JID comparison — matches ALL bot conversations
-     * regardless of resource.
+     * Matches both per-account (mqtt-bot@mqtt.local) and standalone
+     * (mqtt-standalone@mqtt.local) by checking the domain.
      */
     public bool is_bot_conversation(Conversation conversation) {
-        if (mqtt_bot_bare_jid == null) return false;
-        return conversation.counterpart.equals_bare(mqtt_bot_bare_jid);
+        return conversation.counterpart.domainpart == BOT_DOMAIN;
     }
 
     /**
@@ -379,16 +397,24 @@ public class MqttBotConversation : Object {
     /**
      * Determine which connection key a bot conversation belongs to.
      *
-     * The resource part of the counterpart JID IS the connection key:
+     * For standalone: localpart is "mqtt-standalone" → return STANDALONE_KEY
+     * For per-account: resource is the account bare JID (when present)
      *   mqtt-bot@mqtt.local/user@example.org → "user@example.org"
-     *   mqtt-bot@mqtt.local/standalone       → "standalone"
+     *
+     * Falls back to HashMap lookup for DB-loaded conversations that
+     * lost their resource part.
      *
      * Returns null if the conversation is not a bot conversation.
      */
     public string? get_connection_key(Conversation conversation) {
         if (!is_bot_conversation(conversation)) return null;
 
-        /* The resource identifies the connection */
+        /* Standalone: identified by localpart */
+        if (conversation.counterpart.localpart == STANDALONE_LOCALPART) {
+            return STANDALONE_KEY;
+        }
+
+        /* Per-account: resource identifies the connection */
         string? resource = conversation.counterpart.resourcepart;
         if (resource != null && resource != "") {
             return resource;
