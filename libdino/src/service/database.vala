@@ -1034,9 +1034,14 @@ public class Database : Qlite.Database {
             exec("DELETE FROM file_thumbnails");
             total_deleted += changes();
 
-            // Undecrypted message stash (transient, keys won't arrive later)
-            exec("DELETE FROM undecrypted");
-            total_deleted += changes();
+            // Undecrypted message stash (transient, keys won't arrive later).
+            // Table is owned by OMEMO plugin — may not exist on this DB.
+            try {
+                exec("DELETE FROM undecrypted");
+                total_deleted += changes();
+            } catch (Error ue) {
+                // Table not present — nothing to purge, that's fine
+            }
 
             // MAM sync progress markers (forces clean re-sync from server)
             exec("DELETE FROM mam_catchup");
