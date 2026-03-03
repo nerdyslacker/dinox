@@ -501,6 +501,13 @@ public class AvatarManager : StreamInteractionModule, Object {
     public async void store_image(string id, Bytes data) {
         File file = File.new_for_path(Path.build_filename(folder, id));
         try {
+            /* Ensure the avatars directory exists — it may have been removed
+             * by "Clear Cache" which deletes the entire cache tree. */
+            File dir = File.new_for_path(folder);
+            if (!dir.query_exists()) {
+                dir.make_directory_with_parents();
+            }
+
             if (file.query_exists()) file.delete();
 
             uint8[] plaintext = data.get_data();
