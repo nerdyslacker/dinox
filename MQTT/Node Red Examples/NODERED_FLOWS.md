@@ -1,22 +1,104 @@
-# Node-RED Flows für DinoX MQTT
+# Node-RED Flows for DinoX MQTT
 
-> **Weitere Dokumentation:** [MQTT Plugin](../../docs/internal/MQTT_PLUGIN.md) · [MQTT UI Guide](../../docs/internal/MQTT_UI_GUIDE.md)
+> **Further documentation:** [MQTT Plugin](../../docs/internal/MQTT_PLUGIN.md) · [MQTT UI Guide](../../docs/internal/MQTT_UI_GUIDE.md)
 
-Diese Flows verbinden [Node-RED](https://nodered.org/) über MQTT mit dem DinoX MQTT-Bot.
-Node-RED kommuniziert über ejabberds `mod_mqtt` auf Port 8883 (TLS) mit dem XMPP-Server.
+These flows connect [Node-RED](https://nodered.org/) to the DinoX MQTT bot via any MQTT broker.
+DinoX supports **any MQTT 3.1.1/5.0 broker** — both local (Mosquitto, EMQX, etc.) and
+XMPP-integrated (ejabberd `mod_mqtt`).
 
 ## MQTT Topics
 
-| Topic | Richtung | Beschreibung |
-|-------|----------|-------------|
-| `dinox/chat` | DinoX → Node-RED | Eingehende Chat-Nachrichten |
-| `dinox/response` | Node-RED → DinoX | Antworten an den Chat |
+| Topic | Direction | Description |
+|-------|-----------|-------------|
+| `dinox/chat` | DinoX → Node-RED | Incoming chat messages |
+| `dinox/response` | Node-RED → DinoX | Replies to the chat |
 
 ---
 
-## ejabberd mod_mqtt Konfiguration
+## Broker Configuration
 
-In der `ejabberd.yml` muss ein MQTT-Listener konfiguriert sein:
+DinoX can connect to any MQTT broker. Below are three common setups.
+
+### Option A: Local Broker (Mosquitto) — No TLS
+
+The simplest setup. Install Mosquitto on the same machine (or LAN) and connect on port **1883**.
+
+**Install Mosquitto:**
+
+```bash
+# Debian/Ubuntu
+sudo apt install mosquitto mosquitto-clients
+
+# Fedora
+sudo dnf install mosquitto
+
+# macOS
+brew install mosquitto
+```
+
+**Mosquitto config** (`/etc/mosquitto/mosquitto.conf`):
+
+```conf
+listener 1883
+allow_anonymous true
+```
+
+> **Note:** `allow_anonymous true` is fine for local/LAN use.
+> For internet-facing brokers, set up username/password authentication (see Option B).
+
+**DinoX MQTT settings:**
+
+| Setting | Value |
+|---------|-------|
+| Server | `localhost` (or LAN IP, e.g. `192.168.1.100`) |
+| Port | `1883` |
+| TLS | Off |
+| Username | *(empty)* |
+| Password | *(empty)* |
+
+**Node-RED MQTT broker node:**
+
+| Setting | Value |
+|---------|-------|
+| Server | `localhost` |
+| Port | `1883` |
+| Use TLS | unchecked |
+| Username | *(empty)* |
+| Password | *(empty)* |
+
+---
+
+### Option B: Local Broker (Mosquitto) — With Authentication
+
+Same as Option A, but with username/password for security.
+
+**Create a password file:**
+
+```bash
+sudo mosquitto_passwd -c /etc/mosquitto/passwd dinox
+# Enter password when prompted
+sudo mosquitto_passwd -b /etc/mosquitto/passwd nodered secretpassword
+```
+
+**Mosquitto config:**
+
+```conf
+listener 1883
+allow_anonymous false
+password_file /etc/mosquitto/passwd
+```
+
+**DinoX & Node-RED settings:** Same as Option A, but fill in Username and Password.
+
+---
+
+### Option C: ejabberd mod_mqtt — TLS on Port 8883
+
+ejabberd includes a built-in MQTT broker via `mod_mqtt`. This is useful when you're
+already running an ejabberd XMPP server and want to reuse its TLS certificates and
+user accounts.
+
+**ejabberd.yml:**
 
 ```yaml
 listen:
@@ -33,28 +115,67 @@ modules:
   mod_mqtt: {}
 ```
 
-Node-RED MQTT-Broker: `chat.handwerker.jetzt:8883`, Benutzer = volle JID (z.B. `dinox@chat.handwerker.jetzt`), TLS aktiviert.
+**DinoX MQTT settings:**
+
+| Setting | Value |
+|---------|-------|
+| Server | `chat.example.com` |
+| Port | `8883` |
+| TLS | On |
+| Username | Full JID (e.g. `user@chat.example.com`) |
+| Password | XMPP account password |
+
+**Node-RED MQTT broker node:**
+
+| Setting | Value |
+|---------|-------|
+| Server | `chat.example.com` |
+| Port | `8883` |
+| Use TLS | checked |
+| Username | Full JID (e.g. `nodered@chat.example.com`) |
+| Password | XMPP account password |
+
+---
+
+## Testing the Connection
+
+After configuring both DinoX and Node-RED, verify with a quick test:
+
+```bash
+# Subscribe (terminal 1)
+mosquitto_sub -h localhost -p 1883 -t "dinox/#" -v
+
+# Publish (terminal 2)
+mosquitto_pub -h localhost -p 1883 -t "dinox/response" -m "Hello from terminal"
+```
+
+For ejabberd/TLS:
+
+```bash
+mosquitto_sub -h chat.example.com -p 8883 --capath /etc/ssl/certs \
+  -u "user@chat.example.com" -P "password" -t "dinox/#" -v
+```
 
 ---
 
 ## Flow 1: DinoX Bot
 
-Bidirektionaler Bot — empfängt Nachrichten auf `dinox/chat`, antwortet auf `dinox/response`.
+Bidirectional bot — receives messages on `dinox/chat`, replies on `dinox/response`.
 
-| Befehl | Funktion |
-|--------|----------|
-| `help` | Hilfe anzeigen |
-| `time` | Aktuelle Uhrzeit |
-| `ping` | Pong-Antwort |
-| `joke` | Zufallswitz |
-| *alles andere* | Echo |
+| Command | Function |
+|---------|----------|
+| `help` | Show help |
+| `time` | Current time |
+| `ping` | Pong response |
+| `joke` | Random joke |
+| *anything else* | Echo |
 
 ![DinoX Bot Flow](dinoxflow.png)
 
 ![DinoX Bot Flow Detail](dinoxflow1.png)
 
 <details>
-<summary><strong>Flow-JSON zum Importieren (klick zum Aufklappen)</strong></summary>
+<summary><strong>Flow JSON for import (click to expand)</strong></summary>
 
 ```json
 [
@@ -270,29 +391,29 @@ Bidirektionaler Bot — empfängt Nachrichten auf `dinox/chat`, antwortet auf `d
 
 ---
 
-## Flow 2: Tankerkoenig Spritpreise
+## Flow 2: Tankerkoenig Fuel Prices
 
-Automatische Spritpreis-Überwachung mit der [Tankerkönig API](https://creativecommons.tankerkoenig.de/).
-Prüft alle 15 Minuten die Preise und sendet Alerts bei Preisänderungen über den DinoX-Chat.
+Automatic fuel price monitoring using the [Tankerkoenig API](https://creativecommons.tankerkoenig.de/).
+Checks prices every 15 minutes and sends alerts on price changes via the DinoX chat.
 
-| Befehl | Funktion |
-|--------|----------|
-| `sprit` / `tanken` / `preise` | Alle Preise anzeigen |
-| `e5` | Nur Super E5 |
-| `e10` | Nur Super E10 |
-| `diesel` | Nur Diesel |
-| `sprit reset` | Gespeicherte Preise zurücksetzen |
+| Command | Function |
+|---------|----------|
+| `sprit` / `tanken` / `preise` | Show all prices |
+| `e5` | Super E5 only |
+| `e10` | Super E10 only |
+| `diesel` | Diesel only |
+| `sprit reset` | Reset stored price baseline |
 
-**Auto-Alerts:** Alle 15 Min werden die Preise geprüft. Ändert sich ein Preis um mehr als
-den Schwellenwert (Standard: 2 Cent), wird automatisch eine Nachricht gesendet.
+**Auto-Alerts:** Prices are checked every 15 minutes. If a price changes by more than
+the threshold (default: 2 cents), a notification is sent automatically.
 
-**Einrichtung:** Doppelklick auf den gelben Node "Build API URL" →
-API-Key, Tankstellen-UUIDs und Schwellenwerte eintragen.
+**Setup:** Double-click the yellow "Build API URL" node →
+enter your API key, station UUIDs, and thresholds.
 
 ![Tankerkoenig Flow](tankerkoenigflow.png)
 
 <details>
-<summary><strong>Flow-JSON zum Importieren (klick zum Aufklappen)</strong></summary>
+<summary><strong>Flow JSON for import (click to expand)</strong></summary>
 
 ```json
 [
@@ -611,9 +732,12 @@ API-Key, Tankstellen-UUIDs und Schwellenwerte eintragen.
 
 ---
 
-## Import in Node-RED
+## Importing into Node-RED
 
-1. Node-RED öffnen → Menü (☰) → **Import**
-2. JSON-Block oben kopieren oder die `.json`-Dateien direkt importieren
-3. MQTT-Broker-Nodes konfigurieren (Server, Port 8883, TLS, Zugangsdaten)
-4. **Deploy** klicken
+1. Open Node-RED → Menu (☰) → **Import**
+2. Copy one of the JSON blocks above, or import the `.json` files directly
+3. Configure the MQTT broker nodes:
+   - **Local broker:** Server `localhost`, Port `1883`, TLS off
+   - **ejabberd:** Server `chat.example.com`, Port `8883`, TLS on, credentials = full JID
+4. Click **Deploy**
+5. In DinoX bot chat, type: `help`, `time`, `ping`, `joke`

@@ -5,6 +5,41 @@ All notable changes to DinoX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.5.0] - 2026-03-04
+
+### Fixed
+- **MQTT per-account bot JID collision (BUG-CRITICAL)**: All per-account MQTT bots shared `mqtt-bot@mqtt.local` — ConversationManager strips resources for CHAT-type conversations, collapsing all per-account bots into the same conversation. New scheme: each account gets a unique bare JID `mqtt-<escaped_bare_jid>@mqtt.local` (e.g. `mqtt-user_at_example.org@mqtt.local`)
+- **MQTT standalone/per-account cross-wiring (BUG-CRITICAL)**: Standalone MQTT toggled per-account connection because both shared the same bare JID. Standalone now uses dedicated `mqtt-standalone@mqtt.local`
+- **`purge_caches()` crash on Clear Cache**: `DELETE FROM undecrypted` failed because the table is owned by the OMEMO plugin and never instantiated in the main Database. Wrapped in try/catch
+- **Avatar storage after Clear Cache**: `store_image()` failed because `~/.cache/dinox/avatars/` was deleted by cache clear. Now checks and re-creates the directory before writing
+- **CI vala-nightly build**: `git clone --depth 1` + `git fetch --tags --depth=1` prevented `git describe` from finding version tags. Changed to `git fetch --deepen=200 --tags`
+
+### Changed
+- **Version**: 1.1.4.9 → 1.1.5.0
+
+---
+
+## [1.1.4.9] - 2026-03-03
+
+### Fixed
+- **MQTT Enable Switch lag (per-account)**: `update_connection_sensitivity()` in `mqtt_bot_manager_dialog.vala` ran synchronously in `notify["active"]`, setting `.sensitive` on 5 widget groups → CSS restyling blocked Switch animation. Deferred to `Idle.add()` matching settings_page pattern
+- **Untracked `Idle.add()` sources (§9)**: Both `mqtt_bot_manager_dialog.vala` and `settings_page.vala` used bare `Idle.add()` without storing the source ID. Rapid toggle → queued duplicate callbacks; dialog destroy before callback → crash on dead widget. Now tracked via `sensitivity_idle_id`, cancelled before re-queue, cleaned up in destructor
+- **GTK "Broken accounting of active state" warnings**: 5 `grab_focus()` calls on containers (nav_view, this, save_button) replaced with `Gtk.Root.set_focus(null)` across `settings_page.vala`, `mqtt_bot_manager_dialog.vala`, `topic_manager_dialog.vala`
+- **6 compiler warnings → 0**: Removed unused variables in `audit_carbons_forwarding.vala` (1) and `audit_pubsub.vala` (3), removed dead method `emit_new_icon()` in `systray.vala`, removed unreachable `try/catch` in `bot_registry.vala`
+- **Shell script `set -e` + pipeline crash**: `build.sh` and `run_debug.sh` crashed before error reporting due to `set -euo pipefail` + non-zero pipeline exit. Added `set +e` around pipelines, used `PIPESTATUS[0]` for correct exit code
+
+### Added
+- **`scripts/build.sh`**: Build wrapper with `--clean`, `--strict`, `--run` flags. Captures output to `build_log.txt`, extracts warnings to `build_warnings.txt`, color-coded summary
+- **`scripts/run_debug.sh`**: Runtime debug launcher with `G_MESSAGES_DEBUG=all`, `--fatal` (crash on GTK warning), `--filter STR`, `--valgrind`. Logs to `logs/runtime_warnings.log`
+- **`scripts/pre-commit`**: Git hook that auto-builds and rejects commits with compiler warnings. Filters `certificate_warning` false positive
+
+### Changed
+- **REVIEW_CHECKLIST.md 5.10**: Updated from `grab_focus()` recommendation to `Gtk.Root.set_focus(null)` — the old advice was the root cause of GTK warnings
+- **CONTRIBUTING.md**: New build workflow using `scripts/build.sh`, runtime debug step, helper scripts table, MQTT plugin in architecture table
+- **Version**: 1.1.4.8 → 1.1.4.9
+
+---
+
 ## [1.1.4.8] - 2026-03-03
 
 ### Fixed
